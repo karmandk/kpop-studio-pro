@@ -6,14 +6,24 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from api.ytmusic import router as ytmusic_router
-from api.llm import router as llm_router
-from state.persistence import (
-    load_tier_state,
-    save_tier_state,
-    tier_state_to_containers,
-    containers_to_tier_state,
-)
+try:
+    from api.ytmusic import router as ytmusic_router
+    from api.llm import router as llm_router
+    from state.persistence import (
+        load_tier_state,
+        save_tier_state,
+        tier_state_to_containers,
+        containers_to_tier_state,
+    )
+except ImportError:
+    from backend.api.ytmusic import router as ytmusic_router
+    from backend.api.llm import router as llm_router
+    from backend.state.persistence import (
+        load_tier_state,
+        save_tier_state,
+        tier_state_to_containers,
+        containers_to_tier_state,
+    )
 
 app = FastAPI(title="K-Pop Studio Pro API")
 

@@ -2,7 +2,17 @@ import json
 from pathlib import Path
 from typing import Any
 
-TIER_STATE_PATH = Path(__file__).resolve().parent.parent.parent / "tier_state.json"
+def _find_tier_state() -> Path:
+    """Locate tier_state.json relative to this file or the working directory."""
+    candidate = Path(__file__).resolve().parent.parent.parent / "tier_state.json"
+    if candidate.exists():
+        return candidate
+    cwd_candidate = Path.cwd() / "tier_state.json"
+    if cwd_candidate.exists():
+        return cwd_candidate
+    return candidate
+
+TIER_STATE_PATH = _find_tier_state()
 
 TIER_ORDER = ["PEAK", "SSS", "S", "A", "B", "C"]
 
