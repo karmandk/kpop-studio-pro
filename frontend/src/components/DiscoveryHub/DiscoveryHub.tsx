@@ -1,13 +1,13 @@
-import { useState, useMemo } from "react";
-import { Flame, Loader2, Music, AlertCircle, Trash2, Search, X } from "lucide-react";
+import { useState, useMemo, useCallback } from "react";
+import { Flame, Loader2, Music, AlertCircle, Trash2, Search, X, FileDown, ListPlus } from "lucide-react";
 import type { AppSettings, Song } from "../../lib/types";
-import { TIER_ORDER } from "../../lib/types";
+import { getTierColor } from "../../lib/types";
 import { useTierState } from "../../hooks/useTierState";
 import { useSongs } from "../../hooks/useSongs";
 import { useLlm } from "../../hooks/useLlm";
 import SongRow from "./SongRow";
 import VideoModal from "./VideoModal";
-
+import PlaylistImport from "./PlaylistImport";
 import type { User } from "@supabase/supabase-js";
 
 interface DiscoveryHubProps {
@@ -15,23 +15,48 @@ interface DiscoveryHubProps {
   user?: User | null;
 }
 
+function exportCsv(songs: Song[]) {
+  const header = "Group,Title,Album,Year,Views,Tier,Video ID,Analysis";
+  const rows = songs.map((s) => {
+    const escape = (v: string) => `"${(v || "").replace(/"/g, '""')}"`;
+    return [
+      escape(s.group), escape(s.title), escape(s.album), s.year,
+      s.views || "0", s.tier || "", s.video_id, escape(s.analysis || ""),
+    ].join(",");
+  });
+  const csv = [header, ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "kpop-songs.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function DiscoveryHub({ settings, user }: DiscoveryHubProps) {
   const { containers, allGroups } = useTierState(user);
-  const { songs, cachedYear, loading, error, loadSongs, clearSongs, sortSongs, updateSongAnalysis } = useSongs(user);
+  const { songs, cachedYear, loading, error, loadSongs, clearSongs, sortSongs, updateSongAnalysis, addSongs } = useSongs(user);
   const { analyze, analyzingId } = useLlm(settings);
 
-  const [videoModal, setVideoModal] = useState<{
-    videoId: string;
-    title: string;
-  } | null>(null);
+  const [videoModal, setVideoModal] = useState<{ videoId: string; title: string } | null>(null);
   const [groupFilter, setGroupFilter] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
+  const [showPlaylistImport, setShowPlaylistImport] = useState(false);
 
   const tierLookup = useMemo(() => {
     const map: Record<string, string> = {};
     containers.forEach((c) => c.items.forEach((item) => (map[item] = c.header)));
     return map;
   }, [containers]);
+
+  const tierColorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    containers.forEach((c) => { map[c.header] = getTierColor(c.header, c.color); });
+    return map;
+  }, [containers]);
+
+  const tierOrder = useMemo(() => containers.map((c) => c.header), [containers]);
 
   const uniqueGroups = useMemo(
     () => [...new Set(songs.map((s) => s.group))].sort(),
@@ -44,8 +69,8 @@ export default function DiscoveryHub({ settings, user }: DiscoveryHubProps) {
   }, [songs, groupFilter]);
 
   const sorted = useMemo(
-    () => sortSongs(filtered, settings.sortBy, [...TIER_ORDER]),
-    [filtered, settings.sortBy, sortSongs],
+    () => sortSongs(filtered, settings.sortBy, tierOrder),
+    [filtered, settings.sortBy, sortSongs, tierOrder],
   );
 
   const filterSuggestions = useMemo(() => {
@@ -53,41 +78,60 @@ export default function DiscoveryHub({ settings, user }: DiscoveryHubProps) {
     return uniqueGroups;
   }, [uniqueGroups, filterOpen]);
 
-  function handleBake() {
-    loadSongs(allGroups, settings.year, tierLookup);
-  }
+  const handleBake = useCallback(() => {
+    const years = settings.year.split(",").map((y) => y.trim()).filter(Boolean);
+    loadSongs(allGroups, years.length > 0 ? years : [settings.year], tierLookup);
+  }, [allGroups, settings.year, tierLookup, loadSongs]);
 
   async function handleAnalyze(song: Song) {
     const analysis = await analyze(song.title, song.group, song.video_id);
-    if (analysis) {
-      updateSongAnalysis(song.video_id, analysis);
-    }
+    if (analysis) updateSongAnalysis(song.video_id, analysis);
+  }
+
+  function handlePlaylistImported(newSongs: Song[]) {
+    const enriched = newSongs.map((s) => ({ ...s, tier: tierLookup[s.group] || "?" }));
+    addSongs(enriched);
+    setShowPlaylistImport(false);
   }
 
   return (
     <div className="space-y-4">
-      {/* Bake controls */}
+      {/* Controls */}
       <div className="flex items-center gap-3 flex-wrap">
         <button
           onClick={handleBake}
           disabled={loading}
           className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-400 hover:to-red-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {loading ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Flame className="w-4 h-4" />
-          )}
+          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Flame className="w-4 h-4" />}
           {loading ? "Scanning..." : "BAKE DATA"}
         </button>
+
+        <button
+          onClick={() => setShowPlaylistImport(!showPlaylistImport)}
+          className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold bg-purple-500/10 border border-purple-500/20 text-purple-300 hover:bg-purple-500/20 transition-all"
+        >
+          <ListPlus className="w-3.5 h-3.5" />
+          Import Playlist
+        </button>
+
         {songs.length > 0 && (
-          <button
-            onClick={clearSongs}
-            className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-gray-400 bg-white/5 border border-white/10 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-all"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            Clear Results
-          </button>
+          <>
+            <button
+              onClick={() => exportCsv(sorted)}
+              className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-gray-400 bg-white/5 border border-white/10 hover:bg-green-500/10 hover:text-green-400 hover:border-green-500/20 transition-all"
+            >
+              <FileDown className="w-3.5 h-3.5" />
+              Export CSV
+            </button>
+            <button
+              onClick={clearSongs}
+              className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-gray-400 bg-white/5 border border-white/10 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-all"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Clear
+            </button>
+          </>
         )}
         <span className="text-sm text-gray-500">
           {songs.length > 0 && cachedYear
@@ -95,6 +139,11 @@ export default function DiscoveryHub({ settings, user }: DiscoveryHubProps) {
             : `Scan all ${allGroups.length} groups for ${settings.year} releases`}
         </span>
       </div>
+
+      {/* Playlist import panel */}
+      {showPlaylistImport && (
+        <PlaylistImport onImported={handlePlaylistImported} onClose={() => setShowPlaylistImport(false)} />
+      )}
 
       {/* Group filter */}
       {songs.length > 0 && (
@@ -104,10 +153,7 @@ export default function DiscoveryHub({ settings, user }: DiscoveryHubProps) {
             <input
               type="text"
               value={groupFilter}
-              onChange={(e) => {
-                setGroupFilter(e.target.value);
-                setFilterOpen(true);
-              }}
+              onChange={(e) => { setGroupFilter(e.target.value); setFilterOpen(true); }}
               onFocus={() => setFilterOpen(true)}
               onBlur={() => setTimeout(() => setFilterOpen(false), 150)}
               placeholder="Filter by group..."
@@ -130,10 +176,7 @@ export default function DiscoveryHub({ settings, user }: DiscoveryHubProps) {
                   <button
                     key={g}
                     onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => {
-                      setGroupFilter(g);
-                      setFilterOpen(false);
-                    }}
+                    onClick={() => { setGroupFilter(g); setFilterOpen(false); }}
                     className={`w-full text-left px-3 py-2 text-sm hover:bg-white/10 transition-colors ${
                       g === groupFilter ? "text-purple-400 font-semibold bg-purple-500/10" : "text-gray-300"
                     }`}
@@ -171,6 +214,7 @@ export default function DiscoveryHub({ settings, user }: DiscoveryHubProps) {
               onWatch={(vid, title) => setVideoModal({ videoId: vid, title })}
               onAnalyze={handleAnalyze}
               analyzing={analyzingId === song.video_id}
+              tierColorMap={tierColorMap}
             />
           ))}
         </div>
@@ -180,20 +224,14 @@ export default function DiscoveryHub({ settings, user }: DiscoveryHubProps) {
             <Music className="w-12 h-12 mb-4 opacity-30" />
             <p className="text-lg font-semibold">No data yet</p>
             <p className="text-sm mt-1">
-              Click <strong>BAKE DATA</strong> to scan official discographies for{" "}
-              {settings.year}.
+              Click <strong>BAKE DATA</strong> to scan official discographies for {settings.year}.
             </p>
           </div>
         )
       )}
 
-      {/* Video modal */}
       {videoModal && (
-        <VideoModal
-          videoId={videoModal.videoId}
-          title={videoModal.title}
-          onClose={() => setVideoModal(null)}
-        />
+        <VideoModal videoId={videoModal.videoId} title={videoModal.title} onClose={() => setVideoModal(null)} />
       )}
     </div>
   );

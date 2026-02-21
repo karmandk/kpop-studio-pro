@@ -1,27 +1,22 @@
 import { useState } from "react";
-import Header from "./components/Layout/Header";
+import Header, { type Tab } from "./components/Layout/Header";
 import Sidebar from "./components/Layout/Sidebar";
 import TierBoard from "./components/TierBoard/TierBoard";
 import DiscoveryHub from "./components/DiscoveryHub/DiscoveryHub";
+import StatsPage from "./components/StatsPage/StatsPage";
+import BattlePage from "./components/BattlePage/BattlePage";
 import LoginPage from "./components/Auth/LoginPage";
 import ResetPasswordPage from "./components/Auth/ResetPasswordPage";
 import { useAuth } from "./hooks/useAuth";
+import { useTierState } from "./hooks/useTierState";
+import { useSongs } from "./hooks/useSongs";
 import type { AppSettings } from "./lib/types";
 import { Loader2 } from "lucide-react";
 
-type Tab = "tiers" | "discovery";
-
 export default function App() {
   const {
-    user,
-    loading: authLoading,
-    passwordRecovery,
-    isConfigured,
-    signIn,
-    signUp,
-    resetPassword,
-    updatePassword,
-    signOut,
+    user, loading: authLoading, passwordRecovery, isConfigured,
+    signIn, signUp, resetPassword, updatePassword, signOut,
   } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("tiers");
   const [settings, setSettings] = useState<AppSettings>({
@@ -30,6 +25,9 @@ export default function App() {
     groqApiKey: "",
     sortBy: "tier",
   });
+
+  const { containers, allGroups } = useTierState(user);
+  const { songs } = useSongs(user);
 
   if (authLoading) {
     return (
@@ -49,12 +47,7 @@ export default function App() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar
-        settings={settings}
-        onSettingsChange={setSettings}
-        user={user}
-        onSignOut={signOut}
-      />
+      <Sidebar settings={settings} onSettingsChange={setSettings} user={user} onSignOut={signOut} />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header activeTab={activeTab} onTabChange={setActiveTab} />
         <main className="flex-1 overflow-y-auto p-6">
@@ -63,6 +56,12 @@ export default function App() {
           </div>
           <div className={activeTab === "discovery" ? "" : "hidden"}>
             <DiscoveryHub settings={settings} user={user} />
+          </div>
+          <div className={activeTab === "stats" ? "" : "hidden"}>
+            <StatsPage songs={songs} containers={containers} />
+          </div>
+          <div className={activeTab === "battle" ? "" : "hidden"}>
+            <BattlePage groups={allGroups} />
           </div>
         </main>
       </div>

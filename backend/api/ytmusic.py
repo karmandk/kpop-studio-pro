@@ -112,3 +112,54 @@ def get_artist_thumbnail(name: str) -> dict[str, str]:
     except Exception:
         logger.warning("Failed to fetch thumbnail for %s", name)
     return {"url": ""}
+
+
+class PlaylistImportRequest(BaseModel):
+    url: str
+
+
+def _extract_playlist_id(url: str) -> str | None:
+    """Extract playlist ID from a YouTube Music or YouTube URL."""
+    import re
+    match = re.search(r"[?&]list=([a-zA-Z0-9_-]+)", url)
+    return match.group(1) if match else None
+
+
+@router.post("/playlist/import")
+def import_playlist(req: PlaylistImportRequest) -> list[dict[str, Any]]:
+    playlist_id = _extract_playlist_id(req.url)
+    if not playlist_id:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Could not extract playlist ID from URL")
+
+    yt = YTMusic()
+    try:
+        playlist = yt.get_playlist(playlist_id, limit=200)
+    except Exception:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Failed to fetch playlist. Check the URL.")
+
+    results: list[dict[str, Any]] = []
+    seen_vids: set[str] = set()
+
+    for track in playlist.get("tracks", []):
+        vid = track.get("videoId")
+        if not vid or vid in seen_vids:
+            continue
+        seen_vids.add(vid)
+
+        artists = track.get("artists", [])
+        group = artists[0]["name"] if artists else "Unknown"
+        album_info = track.get("album")
+        album_name = album_info.get("name", "Unknown") if album_info else "Unknown"
+
+        results.append({
+            "group": group,
+            "title": track.get("title", "Unknown"),
+            "video_id": vid,
+            "views": _get_view_count(yt, vid),
+            "year": str(track.get("year", "")),
+            "album": album_name,
+        })
+
+    return results

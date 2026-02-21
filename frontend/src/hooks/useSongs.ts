@@ -50,7 +50,6 @@ export function useSongs(user?: User | null) {
   const [progress, setProgress] = useState<string>("");
   const initDone = useRef(false);
 
-  // Load cached songs on mount or user change
   useEffect(() => {
     if (initDone.current) return;
     const ls = loadFromLocalStorage();
@@ -61,17 +60,13 @@ export function useSongs(user?: User | null) {
     initDone.current = true;
   }, []);
 
-  // If logged in, try to load from Supabase for the currently-cached year
   useEffect(() => {
     if (!supabase || !user || !cachedYear) return;
     loadFromSupabase(user.id, cachedYear).then((data) => {
-      if (data && data.length > 0) {
-        setSongs(data);
-      }
+      if (data && data.length > 0) setSongs(data);
     });
   }, [user, cachedYear]);
 
-  // Persist whenever songs change
   useEffect(() => {
     if (songs.length === 0 || !cachedYear) return;
     saveToLocalStorage(songs, cachedYear);
@@ -81,18 +76,25 @@ export function useSongs(user?: User | null) {
   }, [songs, cachedYear, user]);
 
   const loadSongs = useCallback(
-    async (groups: string[], year: string, tierLookup: Record<string, string>) => {
+    async (groups: string[], years: string[], tierLookup: Record<string, string>) => {
       setLoading(true);
       setError(null);
       setProgress("Scanning artist discographies...");
       try {
-        const raw = await fetchSongs(groups, year);
-        const enriched = raw.map((s) => ({
-          ...s,
-          tier: tierLookup[s.group] || "C",
-        }));
-        setSongs(enriched);
-        setCachedYear(year);
+        const allResults: Song[] = [];
+        const seenVids = new Set<string>();
+        for (const year of years) {
+          setProgress(`Scanning ${year}...`);
+          const raw = await fetchSongs(groups, year);
+          for (const s of raw) {
+            if (!seenVids.has(s.video_id)) {
+              seenVids.add(s.video_id);
+              allResults.push({ ...s, tier: tierLookup[s.group] || "?" });
+            }
+          }
+        }
+        setSongs(allResults);
+        setCachedYear(years.join(","));
         setProgress("");
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : "Failed to fetch songs");
@@ -104,17 +106,20 @@ export function useSongs(user?: User | null) {
     [],
   );
 
+  const addSongs = useCallback((newSongs: Song[]) => {
+    setSongs((prev) => {
+      const seenVids = new Set(prev.map((s) => s.video_id));
+      const unique = newSongs.filter((s) => !seenVids.has(s.video_id));
+      return [...prev, ...unique];
+    });
+  }, []);
+
   const clearSongs = useCallback(() => {
     setSongs([]);
     setCachedYear("");
     localStorage.removeItem(LS_KEY);
     if (supabase && user && cachedYear) {
-      supabase
-        .from("user_song_caches")
-        .delete()
-        .eq("user_id", user.id)
-        .eq("year", cachedYear)
-        .then(() => {});
+      supabase.from("user_song_caches").delete().eq("user_id", user.id).eq("year", cachedYear).then(() => {});
     }
   }, [user, cachedYear]);
 
@@ -131,9 +136,9 @@ export function useSongs(user?: User | null) {
         case "tier":
         default:
           sorted.sort((a, b) => {
-            const ta = tierOrder.indexOf(a.tier || "C");
-            const tb = tierOrder.indexOf(b.tier || "C");
-            if (ta !== tb) return ta - tb;
+            const ta = tierOrder.indexOf(a.tier || "?");
+            const tb = tierOrder.indexOf(b.tier || "?");
+            if (ta !== tb) return (ta === -1 ? 999 : ta) - (tb === -1 ? 999 : tb);
             return a.group.localeCompare(b.group);
           });
       }
@@ -143,10 +148,8 @@ export function useSongs(user?: User | null) {
   );
 
   const updateSongAnalysis = useCallback((videoId: string, analysis: string) => {
-    setSongs((prev) =>
-      prev.map((s) => (s.video_id === videoId ? { ...s, analysis } : s)),
-    );
+    setSongs((prev) => prev.map((s) => (s.video_id === videoId ? { ...s, analysis } : s)));
   }, []);
 
-  return { songs, cachedYear, loading, error, progress, loadSongs, clearSongs, sortSongs, updateSongAnalysis };
+  return { songs, cachedYear, loading, error, progress, loadSongs, clearSongs, sortSongs, updateSongAnalysis, addSongs };
 }
