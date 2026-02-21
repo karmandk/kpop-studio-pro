@@ -1,9 +1,13 @@
 import { useState, useCallback, useEffect } from "react";
-import { Swords, Trophy, RotateCcw, Play } from "lucide-react";
+import { Swords, Trophy, RotateCcw, Play, LayoutGrid } from "lucide-react";
 import { getArtistThumbnail } from "../../lib/api";
+import type { TierContainer } from "../../lib/types";
+import { PRESET_COLORS } from "../../lib/types";
 
 interface BattlePageProps {
   groups: string[];
+  containers: TierContainer[];
+  onApplyTierList: (containers: TierContainer[]) => void;
 }
 
 interface Match {
@@ -36,13 +40,27 @@ function createBracket(groups: string[]): Match[] {
   return matches;
 }
 
-export default function BattlePage({ groups }: BattlePageProps) {
+function rankingToTiers(ranking: string[], existingContainers: TierContainer[]): TierContainer[] {
+  const tierCount = Math.min(existingContainers.length, ranking.length);
+  if (tierCount === 0) return existingContainers;
+
+  const perTier = Math.ceil(ranking.length / tierCount);
+  return existingContainers.map((c, i) => ({
+    ...c,
+    items: ranking.slice(i * perTier, (i + 1) * perTier),
+  }));
+}
+
+export default function BattlePage({ groups, containers, onApplyTierList }: BattlePageProps) {
   const [phase, setPhase] = useState<Phase>("setup");
   const [rounds, setRounds] = useState<Match[][]>([]);
   const [currentRound, setCurrentRound] = useState(0);
   const [currentMatch, setCurrentMatch] = useState(0);
-  const [ranking, setRanking] = useState<string[]>([]);
+  // eliminatedByRound[i] = losers from round i (round 0 = first round = weakest)
+  const [eliminatedByRound, setEliminatedByRound] = useState<string[][]>([]);
+  const [champion, setChampion] = useState<string | null>(null);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
+  const [applied, setApplied] = useState(false);
 
   useEffect(() => {
     groups.forEach((g) => {
@@ -59,12 +77,24 @@ export default function BattlePage({ groups }: BattlePageProps) {
     });
   }, [groups]);
 
+  const ranking = (() => {
+    if (!champion) return [];
+    const result: string[] = [champion];
+    // Later rounds = stronger losers, so iterate in reverse
+    for (let i = eliminatedByRound.length - 1; i >= 0; i--) {
+      result.push(...eliminatedByRound[i]);
+    }
+    return result;
+  })();
+
   const startBattle = useCallback(() => {
     const bracket = createBracket(groups);
     setRounds([bracket]);
     setCurrentRound(0);
     setCurrentMatch(0);
-    setRanking([]);
+    setEliminatedByRound([]);
+    setChampion(null);
+    setApplied(false);
     setPhase("battle");
   }, [groups]);
 
@@ -75,19 +105,24 @@ export default function BattlePage({ groups }: BattlePageProps) {
     updatedRounds[currentRound] = round;
 
     const nextMatchIdx = round.findIndex((m, i) => i > currentMatch && !m.winner);
-
     if (nextMatchIdx >= 0) {
       setRounds(updatedRounds);
       setCurrentMatch(nextMatchIdx);
       return;
     }
 
+    // Round complete
     const winners = round.map((m) => m.winner!);
-    const losers = round.filter((m) => m.b !== "").map((m) => m.winner === m.a ? m.b : m.a);
+    const losers = round
+      .filter((m) => m.b !== "")
+      .map((m) => (m.winner === m.a ? m.b : m.a));
+
+    const newEliminated = [...eliminatedByRound, losers];
 
     if (winners.length === 1) {
       setRounds(updatedRounds);
-      setRanking([...winners, ...losers, ...ranking]);
+      setEliminatedByRound(newEliminated);
+      setChampion(winners[0]);
       setPhase("results");
       return;
     }
@@ -96,13 +131,22 @@ export default function BattlePage({ groups }: BattlePageProps) {
     setRounds([...updatedRounds, nextBracket]);
     setCurrentRound(currentRound + 1);
     setCurrentMatch(nextBracket.findIndex((m) => !m.winner) ?? 0);
-    setRanking((prev) => [...prev, ...losers.reverse()]);
+    setEliminatedByRound(newEliminated);
   }
 
   function reset() {
     setPhase("setup");
     setRounds([]);
-    setRanking([]);
+    setEliminatedByRound([]);
+    setChampion(null);
+    setApplied(false);
+  }
+
+  function handleApplyTierList() {
+    if (ranking.length === 0) return;
+    const newContainers = rankingToTiers(ranking, containers);
+    onApplyTierList(newContainers);
+    setApplied(true);
   }
 
   if (groups.length < 2) {
@@ -140,39 +184,64 @@ export default function BattlePage({ groups }: BattlePageProps) {
   if (phase === "results") {
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <Trophy className="w-6 h-6 text-yellow-400" />
             <h2 className="text-xl font-black">Battle Results</h2>
           </div>
-          <button
-            onClick={reset}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 text-gray-400 hover:bg-white/10 hover:text-gray-300 transition-all"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            Battle Again
-          </button>
-        </div>
-        <div className="space-y-2">
-          {ranking.map((group, i) => (
-            <div
-              key={group}
-              className="flex items-center gap-4 px-4 py-3 rounded-xl bg-gray-900/60 border border-white/10"
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleApplyTierList}
+              disabled={applied}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all border ${
+                applied
+                  ? "bg-green-500/15 border-green-500/30 text-green-400"
+                  : "bg-purple-500/10 border-purple-500/20 text-purple-300 hover:bg-purple-500/20"
+              }`}
             >
-              <span className={`text-lg font-black w-8 text-center ${i === 0 ? "text-yellow-400" : i === 1 ? "text-gray-300" : i === 2 ? "text-orange-400" : "text-gray-600"}`}>
-                #{i + 1}
-              </span>
-              {thumbs[group] ? (
-                <img src={thumbs[group]} alt={group} className="w-10 h-10 rounded-lg object-cover border border-white/10" />
-              ) : (
-                <div className="w-10 h-10 rounded-lg bg-gray-700 border border-white/10 flex items-center justify-center text-sm font-bold text-gray-400">
-                  {group[0]}
-                </div>
-              )}
-              <span className="font-bold">{group}</span>
-              {i === 0 && <Trophy className="w-5 h-5 text-yellow-400 ml-auto" />}
-            </div>
-          ))}
+              <LayoutGrid className="w-3.5 h-3.5" />
+              {applied ? "Applied!" : "Apply as Tier List"}
+            </button>
+            <button
+              onClick={reset}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 text-gray-400 hover:bg-white/10 hover:text-gray-300 transition-all"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Battle Again
+            </button>
+          </div>
+        </div>
+
+        {/* Tier preview */}
+        {!applied && (
+          <p className="text-xs text-gray-500">
+            Click "Apply as Tier List" to replace your current tier list with this ranking, distributed across your {containers.length} tiers.
+          </p>
+        )}
+
+        <div className="space-y-2">
+          {ranking.map((group, i) => {
+            const medalColor = i === 0 ? "text-yellow-400" : i === 1 ? "text-gray-300" : i === 2 ? "text-orange-400" : "text-gray-600";
+            return (
+              <div
+                key={group}
+                className="flex items-center gap-4 px-4 py-3 rounded-xl bg-gray-900/60 border border-white/10"
+              >
+                <span className={`text-lg font-black w-8 text-center ${medalColor}`}>
+                  #{i + 1}
+                </span>
+                {thumbs[group] ? (
+                  <img src={thumbs[group]} alt={group} className="w-10 h-10 rounded-lg object-cover border border-white/10" />
+                ) : (
+                  <div className="w-10 h-10 rounded-lg bg-gray-700 border border-white/10 flex items-center justify-center text-sm font-bold text-gray-400">
+                    {group[0]}
+                  </div>
+                )}
+                <span className="font-bold">{group}</span>
+                {i === 0 && <Trophy className="w-5 h-5 text-yellow-400 ml-auto" />}
+              </div>
+            );
+          })}
         </div>
       </div>
     );
@@ -206,20 +275,11 @@ export default function BattlePage({ groups }: BattlePageProps) {
       </div>
 
       <div className="flex items-center justify-center gap-8 py-12">
-        <BattleCard
-          name={match.a}
-          thumb={thumbs[match.a]}
-          onClick={() => pickWinner(match.a)}
-        />
+        <BattleCard name={match.a} thumb={thumbs[match.a]} onClick={() => pickWinner(match.a)} />
         <div className="text-3xl font-black text-gray-600">VS</div>
-        <BattleCard
-          name={match.b}
-          thumb={thumbs[match.b]}
-          onClick={() => pickWinner(match.b)}
-        />
+        <BattleCard name={match.b} thumb={thumbs[match.b]} onClick={() => pickWinner(match.b)} />
       </div>
 
-      {/* Mini bracket progress */}
       <div className="flex flex-wrap gap-2 justify-center">
         {round.map((m, i) => (
           <div

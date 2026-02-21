@@ -27,7 +27,7 @@ export default function App() {
     sortBy: "tier",
   });
 
-  const { containers, allGroups } = useTierState(user);
+  const { containers, allGroups, setContainers: applyTierList, resetToDefault } = useTierState(user);
   const { songs, addSongs } = useSongs(user);
 
   if (authLoading) {
@@ -62,7 +62,7 @@ export default function App() {
             <StatsPage songs={songs} containers={containers} />
           </div>
           <div className={activeTab === "battle" ? "" : "hidden"}>
-            <BattlePage groups={allGroups} />
+            <BattlePage groups={allGroups} containers={containers} onApplyTierList={applyTierList} />
           </div>
           <div className={activeTab === "import" ? "" : "hidden"}>
             <ImportPage onImported={addSongs} importedCount={songs.length} />

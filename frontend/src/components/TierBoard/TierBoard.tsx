@@ -17,7 +17,7 @@ import TierRow from "./TierRow";
 import GroupCard from "./GroupCard";
 import TierEditor from "./TierEditor";
 import { useTierState } from "../../hooks/useTierState";
-import { Loader2, Settings2, Download, X } from "lucide-react";
+import { Loader2, Settings2, Download, X, RotateCcw } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 
 interface TierBoardProps {
@@ -27,7 +27,7 @@ interface TierBoardProps {
 export default function TierBoard({ user }: TierBoardProps) {
   const {
     containers, setContainers, loading, error,
-    addTier, removeTier, renameTier, recolorTier, moveTier,
+    addTier, removeTier, renameTier, recolorTier, moveTier, resetToDefault,
   } = useTierState(user);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
@@ -161,6 +161,13 @@ export default function TierBoard({ user }: TierBoardProps) {
         >
           {exporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
           Export Image
+        </button>
+        <button
+          onClick={() => { if (confirm("Reset tier list to defaults? This will replace your current arrangement.")) resetToDefault(); }}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 text-gray-400 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-all"
+        >
+          <RotateCcw className="w-3.5 h-3.5" />
+          Reset to Default
         </button>
       </div>
 

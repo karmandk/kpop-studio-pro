@@ -123,6 +123,10 @@ export function useTierState(user?: User | null) {
     });
   }, [persistContainers]);
 
+  const resetToDefault = useCallback(() => {
+    persistContainers(DEFAULT_TIERS);
+  }, [persistContainers]);
+
   const allGroups = containers.flatMap((c) => c.items);
 
   return {
@@ -136,5 +140,6 @@ export function useTierState(user?: User | null) {
     renameTier,
     recolorTier,
     moveTier,
+    resetToDefault,
   };
 }
