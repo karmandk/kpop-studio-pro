@@ -8,13 +8,16 @@ import { useLlm } from "../../hooks/useLlm";
 import SongRow from "./SongRow";
 import VideoModal from "./VideoModal";
 
+import type { User } from "@supabase/supabase-js";
+
 interface DiscoveryHubProps {
   settings: AppSettings;
+  user?: User | null;
 }
 
-export default function DiscoveryHub({ settings }: DiscoveryHubProps) {
-  const { containers, allGroups } = useTierState();
-  const { songs, cachedYear, loading, error, loadSongs, clearSongs, sortSongs, updateSongAnalysis } = useSongs();
+export default function DiscoveryHub({ settings, user }: DiscoveryHubProps) {
+  const { containers, allGroups } = useTierState(user);
+  const { songs, cachedYear, loading, error, loadSongs, clearSongs, sortSongs, updateSongAnalysis } = useSongs(user);
   const { analyze, analyzingId } = useLlm(settings);
 
   const [videoModal, setVideoModal] = useState<{

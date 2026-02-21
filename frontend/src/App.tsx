@@ -3,11 +3,15 @@ import Header from "./components/Layout/Header";
 import Sidebar from "./components/Layout/Sidebar";
 import TierBoard from "./components/TierBoard/TierBoard";
 import DiscoveryHub from "./components/DiscoveryHub/DiscoveryHub";
+import LoginPage from "./components/Auth/LoginPage";
+import { useAuth } from "./hooks/useAuth";
 import type { AppSettings } from "./lib/types";
+import { Loader2 } from "lucide-react";
 
 type Tab = "tiers" | "discovery";
 
 export default function App() {
+  const { user, loading: authLoading, isConfigured, signInWithGitHub, signInWithGoogle, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("tiers");
   const [settings, setSettings] = useState<AppSettings>({
     year: "2026",
@@ -16,17 +20,34 @@ export default function App() {
     sortBy: "tier",
   });
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-950">
+        <Loader2 className="w-6 h-6 animate-spin text-purple-400" />
+      </div>
+    );
+  }
+
+  if (isConfigured && !user) {
+    return <LoginPage onGitHub={signInWithGitHub} onGoogle={signInWithGoogle} />;
+  }
+
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar settings={settings} onSettingsChange={setSettings} />
+      <Sidebar
+        settings={settings}
+        onSettingsChange={setSettings}
+        user={user}
+        onSignOut={signOut}
+      />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header activeTab={activeTab} onTabChange={setActiveTab} />
         <main className="flex-1 overflow-y-auto p-6">
           <div className={activeTab === "tiers" ? "" : "hidden"}>
-            <TierBoard />
+            <TierBoard user={user} />
           </div>
           <div className={activeTab === "discovery" ? "" : "hidden"}>
-            <DiscoveryHub settings={settings} />
+            <DiscoveryHub settings={settings} user={user} />
           </div>
         </main>
       </div>

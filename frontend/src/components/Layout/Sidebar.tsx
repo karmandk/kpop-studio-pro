@@ -1,12 +1,15 @@
-import { Settings, Calendar, Brain, ArrowUpDown, Key } from "lucide-react";
+import { Settings, Calendar, Brain, ArrowUpDown, Key, LogOut } from "lucide-react";
 import type { AppSettings } from "../../lib/types";
+import type { User } from "@supabase/supabase-js";
 
 interface SidebarProps {
   settings: AppSettings;
   onSettingsChange: (s: AppSettings) => void;
+  user?: User | null;
+  onSignOut?: () => void;
 }
 
-export default function Sidebar({ settings, onSettingsChange }: SidebarProps) {
+export default function Sidebar({ settings, onSettingsChange, user, onSignOut }: SidebarProps) {
   function update(patch: Partial<AppSettings>) {
     onSettingsChange({ ...settings, ...patch });
   }
@@ -112,8 +115,29 @@ export default function Sidebar({ settings, onSettingsChange }: SidebarProps) {
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="px-5 py-3 border-t border-white/5">
+      {/* User / Footer */}
+      <div className="px-5 py-3 border-t border-white/5 space-y-3">
+        {user && (
+          <div className="flex items-center gap-2">
+            {user.user_metadata?.avatar_url && (
+              <img
+                src={user.user_metadata.avatar_url}
+                alt=""
+                className="w-7 h-7 rounded-full border border-white/10"
+              />
+            )}
+            <span className="text-xs text-gray-400 truncate flex-1">
+              {user.user_metadata?.user_name || user.email || "User"}
+            </span>
+            <button
+              onClick={onSignOut}
+              className="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+              title="Sign out"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
         <p className="text-[10px] text-gray-700 text-center">
           Built with React + FastAPI + dnd-kit
         </p>

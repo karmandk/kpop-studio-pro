@@ -39,20 +39,23 @@ export default function TierRow({ tierName, items }: TierRowProps) {
       </div>
 
       {/* Droppable area with sortable cards */}
-      <div ref={setNodeRef} className="flex-1 p-3 min-h-[100px]">
-        <SortableContext items={items} strategy={rectSortingStrategy}>
-          <div className="flex flex-wrap gap-2.5">
-            {items.length === 0 && (
-              <span className="text-xs text-gray-600 italic self-center px-4">
-                Drop groups here
-              </span>
-            )}
-            {items.map((name) => (
-              <GroupCard key={name} id={name} name={name} />
-            ))}
-          </div>
-        </SortableContext>
-      </div>
+      <SortableContext items={items} strategy={rectSortingStrategy}>
+        <div
+          ref={setNodeRef}
+          className={`flex-1 p-3 flex flex-wrap gap-2.5 items-start content-start min-h-[100px] ${
+            items.length === 0 ? "justify-center items-center" : ""
+          }`}
+        >
+          {items.length === 0 && (
+            <span className="text-xs text-gray-600 italic px-4">
+              Drop groups here
+            </span>
+          )}
+          {items.map((name) => (
+            <GroupCard key={name} id={name} name={name} />
+          ))}
+        </div>
+      </SortableContext>
     </div>
   );
 }

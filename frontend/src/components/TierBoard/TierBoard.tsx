@@ -18,8 +18,14 @@ import { useTierState } from "../../hooks/useTierState";
 import { TIER_ORDER } from "../../lib/types";
 import { Loader2 } from "lucide-react";
 
-export default function TierBoard() {
-  const { containers, setContainers, loading, error } = useTierState();
+import type { User } from "@supabase/supabase-js";
+
+interface TierBoardProps {
+  user?: User | null;
+}
+
+export default function TierBoard({ user }: TierBoardProps) {
+  const { containers, setContainers, loading, error } = useTierState(user);
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const sensors = useSensors(
