@@ -1,6 +1,6 @@
-import { LayoutGrid, Disc3, BarChart3, Swords } from "lucide-react";
+import { LayoutGrid, Disc3, BarChart3, Swords, ListPlus } from "lucide-react";
 
-export type Tab = "tiers" | "discovery" | "stats" | "battle";
+export type Tab = "tiers" | "discovery" | "stats" | "battle" | "import";
 
 interface HeaderProps {
   activeTab: Tab;
@@ -13,6 +13,7 @@ export default function Header({ activeTab, onTabChange }: HeaderProps) {
     { id: "discovery", label: "Discovery Hub", icon: <Disc3 className="w-4 h-4" /> },
     { id: "stats", label: "Stats", icon: <BarChart3 className="w-4 h-4" /> },
     { id: "battle", label: "Battle", icon: <Swords className="w-4 h-4" /> },
+    { id: "import", label: "Import", icon: <ListPlus className="w-4 h-4" /> },
   ];
 
   return (

@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
-import { Flame, Loader2, Music, AlertCircle, Trash2, Search, X, FileDown, ListPlus } from "lucide-react";
+import { Flame, Loader2, Music, AlertCircle, Trash2, Search, X, FileDown } from "lucide-react";
 import type { AppSettings, Song } from "../../lib/types";
 import { getTierColor } from "../../lib/types";
 import { useTierState } from "../../hooks/useTierState";
@@ -7,7 +7,6 @@ import { useSongs } from "../../hooks/useSongs";
 import { useLlm } from "../../hooks/useLlm";
 import SongRow from "./SongRow";
 import VideoModal from "./VideoModal";
-import PlaylistImport from "./PlaylistImport";
 import type { User } from "@supabase/supabase-js";
 
 interface DiscoveryHubProps {
@@ -36,13 +35,12 @@ function exportCsv(songs: Song[]) {
 
 export default function DiscoveryHub({ settings, user }: DiscoveryHubProps) {
   const { containers, allGroups } = useTierState(user);
-  const { songs, cachedYear, loading, error, loadSongs, clearSongs, sortSongs, updateSongAnalysis, addSongs } = useSongs(user);
+  const { songs, cachedYear, loading, error, loadSongs, clearSongs, sortSongs, updateSongAnalysis } = useSongs(user);
   const { analyze, analyzingId } = useLlm(settings);
 
   const [videoModal, setVideoModal] = useState<{ videoId: string; title: string } | null>(null);
   const [groupFilter, setGroupFilter] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
-  const [showPlaylistImport, setShowPlaylistImport] = useState(false);
 
   const tierLookup = useMemo(() => {
     const map: Record<string, string> = {};
@@ -88,12 +86,6 @@ export default function DiscoveryHub({ settings, user }: DiscoveryHubProps) {
     if (analysis) updateSongAnalysis(song.video_id, analysis);
   }
 
-  function handlePlaylistImported(newSongs: Song[]) {
-    const enriched = newSongs.map((s) => ({ ...s, tier: tierLookup[s.group] || "?" }));
-    addSongs(enriched);
-    setShowPlaylistImport(false);
-  }
-
   return (
     <div className="space-y-4">
       {/* Controls */}
@@ -105,14 +97,6 @@ export default function DiscoveryHub({ settings, user }: DiscoveryHubProps) {
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Flame className="w-4 h-4" />}
           {loading ? "Scanning..." : "BAKE DATA"}
-        </button>
-
-        <button
-          onClick={() => setShowPlaylistImport(!showPlaylistImport)}
-          className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold bg-purple-500/10 border border-purple-500/20 text-purple-300 hover:bg-purple-500/20 transition-all"
-        >
-          <ListPlus className="w-3.5 h-3.5" />
-          Import Playlist
         </button>
 
         {songs.length > 0 && (
@@ -139,11 +123,6 @@ export default function DiscoveryHub({ settings, user }: DiscoveryHubProps) {
             : `Scan all ${allGroups.length} groups for ${settings.year} releases`}
         </span>
       </div>
-
-      {/* Playlist import panel */}
-      {showPlaylistImport && (
-        <PlaylistImport onImported={handlePlaylistImported} onClose={() => setShowPlaylistImport(false)} />
-      )}
 
       {/* Group filter */}
       {songs.length > 0 && (

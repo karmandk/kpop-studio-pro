@@ -5,6 +5,7 @@ import TierBoard from "./components/TierBoard/TierBoard";
 import DiscoveryHub from "./components/DiscoveryHub/DiscoveryHub";
 import StatsPage from "./components/StatsPage/StatsPage";
 import BattlePage from "./components/BattlePage/BattlePage";
+import ImportPage from "./components/ImportPage/ImportPage";
 import LoginPage from "./components/Auth/LoginPage";
 import ResetPasswordPage from "./components/Auth/ResetPasswordPage";
 import { useAuth } from "./hooks/useAuth";
@@ -27,7 +28,7 @@ export default function App() {
   });
 
   const { containers, allGroups } = useTierState(user);
-  const { songs } = useSongs(user);
+  const { songs, addSongs } = useSongs(user);
 
   if (authLoading) {
     return (
@@ -62,6 +63,9 @@ export default function App() {
           </div>
           <div className={activeTab === "battle" ? "" : "hidden"}>
             <BattlePage groups={allGroups} />
+          </div>
+          <div className={activeTab === "import" ? "" : "hidden"}>
+            <ImportPage onImported={addSongs} importedCount={songs.length} />
           </div>
         </main>
       </div>
