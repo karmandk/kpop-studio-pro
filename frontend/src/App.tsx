@@ -4,6 +4,7 @@ import Sidebar from "./components/Layout/Sidebar";
 import TierBoard from "./components/TierBoard/TierBoard";
 import DiscoveryHub from "./components/DiscoveryHub/DiscoveryHub";
 import LoginPage from "./components/Auth/LoginPage";
+import ResetPasswordPage from "./components/Auth/ResetPasswordPage";
 import { useAuth } from "./hooks/useAuth";
 import type { AppSettings } from "./lib/types";
 import { Loader2 } from "lucide-react";
@@ -11,7 +12,17 @@ import { Loader2 } from "lucide-react";
 type Tab = "tiers" | "discovery";
 
 export default function App() {
-  const { user, loading: authLoading, isConfigured, signInWithGitHub, signInWithGoogle, signOut } = useAuth();
+  const {
+    user,
+    loading: authLoading,
+    passwordRecovery,
+    isConfigured,
+    signIn,
+    signUp,
+    resetPassword,
+    updatePassword,
+    signOut,
+  } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("tiers");
   const [settings, setSettings] = useState<AppSettings>({
     year: "2026",
@@ -28,8 +39,12 @@ export default function App() {
     );
   }
 
+  if (passwordRecovery) {
+    return <ResetPasswordPage onUpdatePassword={updatePassword} />;
+  }
+
   if (isConfigured && !user) {
-    return <LoginPage onGitHub={signInWithGitHub} onGoogle={signInWithGoogle} />;
+    return <LoginPage onSignIn={signIn} onSignUp={signUp} onResetPassword={resetPassword} />;
   }
 
   return (
